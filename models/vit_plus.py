@@ -79,3 +79,30 @@ class VisionTransformerPlus(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, 1 + self.patch_embed.n_patches, embed_dim))
         self.pos_drop = nn.Dropout(p=0.1)
+
+        self.blocks = nn.ModuleList([
+            TransformerBlock(embed_dim, num_heads) for _ in range(depth)
+        ])
+
+        self.norm = nn.LayerNorm(embed_dim)
+        self.head = nn.Linear(embed_dim, num_classes)
+
+    def forward(self, x):
+        B = x.shape[0]
+        x = self.patch_embed(x)
+        cls_token = self.cls_token.expand(B, -1, -1)
+        x = torch.cat((cls_token, x), dim=1)
+        x = x + self.pos_embed
+        x = self.pos_drop(x)
+
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.norm(x)
+        return self.head(x[:, 0])
+
+if __name__ == "__main__":
+    model = VisionTransformerPlus()
+    dummy_input = torch.randn(1, 3, 224, 224)
+    output = model(dummy_input)
+    print(f"Output shape: {output.shape}")
